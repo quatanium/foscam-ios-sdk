@@ -15,4 +15,5 @@
 # Executables
 *.exe
 *.out
-*.appe
+*.app
+.DS_Store

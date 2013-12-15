@@ -10,6 +10,7 @@
 #define maxvbuf 300000
 
 @implementation FrameBuffer
+
 - (id)init
 {
 	self = [super init];
@@ -28,10 +29,9 @@
 		free(frameBuf);
 		frameBuf = NULL;
 	}
-	[super dealloc];
 }
 
-- (void) CreateBuf:(int)size
+- (void)createBuf:(int)size
 {
 	assert(size > 0);
 	bufferSize = size;
@@ -44,7 +44,7 @@
 	frameBuf = malloc(size);
 }
 
-- (void) releaseBuf
+- (void)releaseBuf
 {
 	if (frameBuf) {
 		free(frameBuf);
@@ -52,7 +52,7 @@
 	}
 }
 
-- (void)writeFrame:(int)type :(char*)frame :(int)len :(long long)pts :(bool)isKey;
+- (void)writeFrame:(int)type :(char *)frame :(int)len :(long long)pts :(bool)isKey;
 {
     if (bError) {
         if (!isKey) {
@@ -60,34 +60,34 @@
         }
         bError = false;
     }
-	StraemFrame ff;
+	StreamFrame ff;
 	memcpy(ff.magic, "FSAV", 4);
 	ff.length = len;
 	ff.pts = pts;
 	ff.type = type;
 	ff.isKey = isKey;
-	int s = sizeof(StraemFrame);
+	int s = sizeof(StreamFrame);
 	LOCK_MUTEX(&mutex);
-	if (writelen + len + s <= bufferSize) {	//空间足够
-		memcpy(frameBuf + writelen, (char*)&ff, s);
+	if (writelen + len + s <= bufferSize) {//空间足够
+		memcpy(frameBuf + writelen, (char *)&ff, s);
 		memcpy(frameBuf + writelen + s, frame, len);
 		writelen += (len + s);
 		tFrame ++;
 		UNLOCK_MUTEX(&mutex);
 		return;
-	}else {
+	} else {
 		if (isKey) {//当前是关键帧，丢掉所有帧，填充当前帧
 			goto writeTofirst;
-		}else {
+		} else {
 			//丢掉所有帧，剩最后一个关键帧
-			char* lastIFrame = NULL;
+			char *lastIFrame = NULL;
 			int	parseLen = 0;
-			for (int i=0; i<tFrame; i++) {
-				StraemFrame* f= (StraemFrame*)frameBuf;
+			for (int i = 0; i < tFrame; i++) {
+				StreamFrame *f= (StreamFrame *)frameBuf;
 				if (strncmp(f->magic, "FSAV", 4) == 0 && parseLen + f->length + s <= writelen) {
 					parseLen += f->length + s;
 					if (f->isKey) {
-						lastIFrame = (char*)&f;
+						lastIFrame = (char *)&f;
 					}
 				}else {//帧序出错，丢掉所有帧
                     writelen = 0;
@@ -99,11 +99,11 @@
 			}
 			
 			if (lastIFrame) {
-				StraemFrame* f= (StraemFrame*)lastIFrame;
+				StreamFrame * f= (StreamFrame *)lastIFrame;
 				memmove(frameBuf, lastIFrame, f->length+s);
 				writelen = f->length + s;
 				
-				memcpy(frameBuf + writelen, (char*)&ff, s);
+				memcpy(frameBuf + writelen, (char *)&ff, s);
 				memcpy(frameBuf + writelen + s, frame, len);
 				writelen += (s + len);
 				tFrame = 2;
@@ -120,46 +120,37 @@
 	}
 	
 writeTofirst:
-	memcpy(frameBuf, (char*)&ff, s);
+	memcpy(frameBuf, (char *)&ff, s);
 	memcpy(frameBuf + s, frame, len);
 	writelen = (len + s);
 	tFrame = 1;
 	UNLOCK_MUTEX(&mutex);
 }
 
-- (BOOL)readFrame:(int*)type :(char*)frame :(int*)len :(long long*)pts;
+- (BOOL)readFrame:(int*)type :(char*)frame :(int*)len :(long long *)pts;
 {
-    
 	assert(frame && type && len && pts);
-	int s = sizeof(StraemFrame);
+	int s = sizeof(StreamFrame);
 	LOCK_MUTEX(&mutex);
 	if (writelen > s && (writelen - s) < 300000 ) {
-		StraemFrame* f = (StraemFrame*)frameBuf;
+		StreamFrame *f = (StreamFrame *)frameBuf;
 		if (strncmp(f->magic, "FSAV", 4) == 0)
 		{
 			if (f->length + s <= writelen) {
 				*len = f->length;
 				*pts = f->pts;
 				*type = f->type;
-				
                 
 				writelen -= (f->length + s);
- //               printf("%d\n",f->length);
                                 
                 memcpy(frame, f->data, f->length);
                 memmove(frameBuf, f->data + f->length, writelen);
-                                            
                 
-                tFrame --;
+                tFrame--;
                 UNLOCK_MUTEX(&mutex);
-                //NSLog(@"readframe:%d", f->isKey);
                 return YES;
-
-                
-                
 			}
-		}else {//帧序出错，丢掉所有帧
-			NSLog(@"帧序出错， readframe");
+		} else {//帧序出错，丢掉所有帧
 			writelen = 0;
 			tFrame = 0;
 		}
@@ -167,4 +158,5 @@ writeTofirst:
 	UNLOCK_MUTEX(&mutex);
 	return NO;
 }
+
 @end

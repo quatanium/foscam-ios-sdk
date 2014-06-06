@@ -1,9 +1,9 @@
 //
 //  FoscamCamera.m
-//  homer
+//  foscam-ios-sdk
 //
 //  Created by yu dezhi on 12/11/13.
-//  Copyright (c) 2013 Quatanium Inc. All rights reserved.
+//  Copyright (c) 2013 Quatanium Co., Ltd. All rights reserved.
 //
 
 #import "FoscamCamera.h"

@@ -63,7 +63,7 @@ bool MediaConvert::ParseSPS(const unsigned char *sps, int *width, int *height)
 	
 	if (profile_idc == 100 || profile_idc == 110 || profile_idc == 122 || profile_idc == 144)
 	{
-		abort();	//暂未处理
+		abort();	// No treatment
 	}
 	
 	off += GetGolombValue(sps, off, NULL);	//log2_max_frame_num_minus4
@@ -74,13 +74,13 @@ bool MediaConvert::ParseSPS(const unsigned char *sps, int *width, int *height)
 	}
 	else if (v == 1)
 	{
-		abort();	//暂未处理
+		abort();	// No treatment
 	}
 	
 	off += GetGolombValue(sps, off, &v);	//num_ref_frames
 	off += 1;	//graps_in_num_value_allowed_flag
 	off += GetGolombValue(sps, off, &v);	//pic_width_in_mbs_minus1
-	*width = (v + 1) * 16;	//需要做+1处理，不清楚为什么
+	*width = (v + 1) * 16;	// +1 Deal needs to be done is not clear why the
 	int a=0;a++;
 	off += GetGolombValue(sps, off, &v);	//pic_heigth_in_map_units_minus1
 	*height = (v + 1) * 16;	
@@ -125,8 +125,8 @@ bool MediaConvert::ParseJpeg(const uint8_t *buf, int len, int *w, int *h)
 uint8_t *MediaConvert::CreateBMP(uint8_t *src, enum PixelFormat fmt, 
 								 int width, int height, int *len, bool reverse)
 {
-	AVFrame *frame_src = avcodec_alloc_frame();
-	AVFrame *frame_dst = avcodec_alloc_frame();
+	AVFrame *frame_src = av_frame_alloc();
+	AVFrame *frame_dst = av_frame_alloc();
 	enum PixelFormat bmp_fmt = PIX_FMT_BGR24;
 	
 	int bytes = avpicture_get_size(bmp_fmt, width, height);
@@ -203,19 +203,19 @@ uint8_t *MediaConvert::CreateBMP(uint8_t *src, enum PixelFormat fmt,
  * video
  *****************************************************************/
 
-bool MediaConvert::VideoDecOpen(enum CodecID ci, int w, int h, enum PixelFormat fd)
+bool MediaConvert::VideoDecOpen(enum AVCodecID ci, int w, int h, enum PixelFormat fd)
 {
 	AVCodec *codec = avcodec_find_decoder(ci);
 	if (codec == NULL) {
 		goto video_dec_open_fail;
 	}
 	
-	_video_ctx = avcodec_alloc_context();
+	_video_ctx = avcodec_alloc_context3(codec);
 //	_video_ctx->pix_fmt = PIX_FMT_YUYV422;
-	avcodec_open(_video_ctx, codec);
+	avcodec_open2(_video_ctx, codec, NULL);
 	
-	_frame_src = avcodec_alloc_frame();
-	_frame_dst = avcodec_alloc_frame();
+	_frame_src = av_frame_alloc();
+	_frame_dst = av_frame_alloc();
 	_width = w;
 	_height = h;
 	_fmt_dst = fd;
@@ -250,8 +250,7 @@ void MediaConvert::VideoDecClose()
 	av_free(_frame_dst);
 }
 
-void yuv420p_to_yuv422(uint8_t * cy, uint8_t * cu, uint8_t * cv, uint8_t * dest, int width, 
-					   int height) 
+void yuv420p_to_yuv422(uint8_t * cy, uint8_t * cu, uint8_t * cv, uint8_t * dest, int width, int height) 
 { 
     unsigned int x, y; 
 	
@@ -293,7 +292,7 @@ bool MediaConvert::VideoDecFrame(uint8_t *src, int size, uint8_t *dst)
 				avpicture_alloc(&picture, PIX_FMT_RGB24, _width, _height);
 				
 				// Setup scaler
-				static int sws_flags =  SWS_FAST_BILINEAR;
+//				static int sws_flags =  SWS_FAST_BILINEAR;
 				if (_width == 1280) {
 					_w = 640;
 					_h = 360;
@@ -370,19 +369,19 @@ bool MediaConvert::IsVideoDevOpen()
  * G726
  *****************************************************************/
 
-bool MediaConvert::AudioDecOpen(enum CodecID codec_id, int bit_rate, int sample_rate, int channels)
+bool MediaConvert::AudioDecOpen(enum AVCodecID codec_id, int bit_rate, int sample_rate, int channels)
 {
 	AVCodec *codec = avcodec_find_decoder(codec_id);
 	if (!codec) {
 		return false;
 	}
 	
-	_audio_ctx = avcodec_alloc_context();
+    _audio_ctx = avcodec_alloc_context3(codec);
 	_audio_ctx->bit_rate = bit_rate;
 	_audio_ctx->sample_rate = sample_rate;
 	_audio_ctx->channels = channels;
 	
-	avcodec_open(_audio_ctx, codec);
+    avcodec_open2(_audio_ctx, codec, NULL);
 	
 	return true;
 }
@@ -397,13 +396,25 @@ void MediaConvert::AudioDecClose()
 bool MediaConvert::AudioDecFrame(uint8_t *src, int16_t *dst, int *size)
 {
 	AVPacket packet;
+    AVFrame *decoded_frame = NULL;
+
 	memset(&packet, 0x0, sizeof(AVPacket));
 	packet.size = *size;
 	packet.data = src;
 	packet.pos = -1;
-	*size = AVCODEC_MAX_AUDIO_FRAME_SIZE;
-	
-	avcodec_decode_audio3(_audio_ctx, dst, size, &packet);
+	*size = 0;
+    
+    if (!decoded_frame) {
+        if (!(decoded_frame = av_frame_alloc())) {
+            fprintf(stderr, "out of memory\n");
+            exit(1);
+        }
+    } else {
+        av_frame_unref(decoded_frame);
+    }
+
+	   
+    avcodec_decode_audio4(_audio_ctx, decoded_frame, size, &packet);
 	
 	return true;
 }
@@ -448,8 +459,8 @@ void MediaConvert::ImaAdpcmEncode(const unsigned char * raw, int len, unsigned c
 	
 	for (i = 0;i < len;i ++)
 	{
-		cur_sample = pcm[i]; // 得到当前的采样数据
-		delta = cur_sample - _en_sample; // 计算出和上一个的增量
+		cur_sample = pcm[i]; // Get the current sample data
+		delta = cur_sample - _en_sample; // Calculated on an incremental one, and
 		if ( delta < 0 )
 		{
 			delta = -delta;
@@ -458,12 +469,12 @@ void MediaConvert::ImaAdpcmEncode(const unsigned char * raw, int len, unsigned c
 		else 
 		{
 			sb = 0;
-		}	// sb 保存的是符号位
-		code = 4 * delta / step_table[_en_index];	// 根据 steptable[]得到一个 0-7 的值
+		}	// sb - The sign bit is saved
+		code = 4 * delta / step_table[_en_index];	// A value of 0-7 according steptable []
 		if (code>7) 
-			code=7;	// 它描述了声音强度的变化量
+			code=7;	// It describes the amount of change in sound intensity
 		
-		delta = (step_table[_en_index] * code) / 4 + step_table[_en_index] / 8;	// 后面加的一项是为了减少误差
+		delta = (step_table[_en_index] * code) / 4 + step_table[_en_index] / 8;	// Is followed by an order to reduce errors
 		if (sb) 
 			delta = -delta;
 		_en_sample += delta;

@@ -30,25 +30,28 @@ typedef struct { /* bmih */
 	uint32_t biClrImportant;
 } BMP_INFO_HDR;
 
+
+enum AVCodecID;
+
 #pragma pack (pop)
 
 
 class MediaConvert {
 public:
 	//H264
-	static bool ParseSPS(const unsigned char *sps, int *width, int *height);	//解析psp帧
+	static bool ParseSPS(const unsigned char *sps, int *width, int *height);	//Analytic frame psp
 
 	//MJPEG
 	static bool ParseJpeg(const uint8_t *buf, int len, int *w, int *h);
 	
-	//使用完需将指针free
+	// After the need to use the pointer free
 	static uint8_t *CreateBMP(uint8_t *src, enum PixelFormat fmt, int width, 
 							  int height, int *len, bool reverse = false);
 	
 	/*****************************************************************
 	 * video
 	 *****************************************************************/
-	bool VideoDecOpen(enum CodecID ci, int w, int h, enum PixelFormat fd);
+	bool VideoDecOpen(enum AVCodecID ci, int w, int h, enum PixelFormat fd);
 	void VideoDecClose();
 	bool VideoDecFrame(uint8_t *src, int size, uint8_t *dst);
 	int VideoWidth();
@@ -69,11 +72,12 @@ public:
 	/*****************************************************************
 	 * G726
 	 *****************************************************************/
-	bool AudioDecOpen(enum CodecID codec_id, int bit_rate, int sample_rate, int channels);
+	bool AudioDecOpen(enum AVCodecID codec_id, int bit_rate, int sample_rate, int channels);
 	void AudioDecClose();
 	bool AudioDecFrame(uint8_t *src, int16_t *dst, int *size);
-	
-	
+    
+    void yuv420p_to_yuv422(uint8_t * cy, uint8_t * cu, uint8_t * cv, uint8_t * dest, int width, int height);
+
 	MediaConvert();
 	~MediaConvert();
 	
@@ -94,7 +98,7 @@ private:
 	int		_byte_num;
 	uint8_t	*_img_buf;
 	enum PixelFormat	_fmt_dst;
-	
+    
 public:
 	AVPicture picture;
 };

@@ -16,32 +16,33 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef AVFILTER_VSINK_BUFFER_H
-#define AVFILTER_VSINK_BUFFER_H
-
 /**
  * @file
- * memory buffer sink API for video
+ * @ingroup lavu
+ * Utility Preprocessor macros
  */
 
-#include "avfilter.h"
+#ifndef AVUTIL_MACROS_H
+#define AVUTIL_MACROS_H
 
 /**
- * Tell av_vsink_buffer_get_video_buffer_ref() to read the picref, but not
- * remove it from the buffer. This is useful if you need only to read
- * the picref, without to fetch it.
- */
-#define AV_VSINK_BUF_FLAG_PEEK 1
-
-/**
- * Get a video buffer data from buffer_sink and put it in picref.
+ * @addtogroup preproc_misc Preprocessor String Macros
  *
- * @param buffer_sink pointer to a buffer sink context
- * @param flags a combination of AV_VSINK_BUF_FLAG_* flags
- * @return >= 0 in case of success, a negative AVERROR code in case of
- * failure
+ * String manipulation macros
+ *
+ * @{
  */
-int av_vsink_buffer_get_video_buffer_ref(AVFilterContext *buffer_sink,
-                                         AVFilterBufferRef **picref, int flags);
 
-#endif /* AVFILTER_VSINK_BUFFER_H */
+#define AV_STRINGIFY(s)         AV_TOSTRING(s)
+#define AV_TOSTRING(s) #s
+
+#define AV_GLUE(a, b) a ## b
+#define AV_JOIN(a, b) AV_GLUE(a, b)
+
+/**
+ * @}
+ */
+
+#define AV_PRAGMA(s) _Pragma(#s)
+
+#endif /* AVUTIL_MACROS_H */

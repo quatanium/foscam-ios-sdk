@@ -12,18 +12,16 @@
 @protocol FoscamDelegate
 - (void)loggedIn;
 - (void)loginFailed:(int)reason;
-- (void)videoOpened;
-- (void)videoFailedToOpen;
+- (void)videoOpenedForWidth:(int)width andHeight:(int)height;
 @end
 
 @interface FoscamCamera : NSObject
-@property (weak   , nonatomic) id <FoscamDelegate>  delegate;
-@property (strong , nonatomic) NSString            *user_IP;
-@property (strong , nonatomic) NSString            *user_Name;
-@property (strong , nonatomic) NSString            *user_Password;
-@property (assign , nonatomic) int                  user_Port;
-@property (strong , nonatomic) UIImageView         *firstimageShowView;
-- (id)initWithImageView:(UIImageView *)imageView connectIP:(NSString *)ip connectPort:(int)port forAdmin:(NSString *)admin withPass:(NSString *)pass autoStart:(BOOL)startNow;
+@property (weak,   nonatomic) id <FoscamDelegate>  delegate;
+@property (strong, nonatomic) NSString            *user_IP;
+@property (strong, nonatomic) NSString            *user_Name;
+@property (strong, nonatomic) NSString            *user_Password;
+@property         (nonatomic) int                  user_Port;
+@property (strong, nonatomic) UIImageView         *firstImageShowView;
 - (void)startPlay;
 - (void)stopPlay;
 - (void)moveUp;

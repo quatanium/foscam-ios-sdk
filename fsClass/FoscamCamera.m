@@ -21,23 +21,22 @@ typedef struct AVPicture {
 char m_frameBuf[BUFFER_SIZE];
 
 @interface FoscamCamera()
-@property (assign , nonatomic) HFSTHREAD     m_hThread;
-@property (assign , nonatomic) HFSTHREAD     m_hMessageThread;
-@property (assign , nonatomic) BOOL		     m_ThreadRun;
-@property (assign , nonatomic) BOOL          m_MessageThreadRun;
-@property (assign , nonatomic) NETPARAM	     m_CtrlParam;
-@property (assign , nonatomic) int           m_iChid;
-@property (assign , nonatomic) int           m_iDeviceType;
-@property (assign , nonatomic) MUTEX         m_liveViewMutex;
-@property (assign , nonatomic) MUTEX         m_hImageMutex;
-@property (assign , nonatomic) MUTEX         m_hUpdateViewMutex;
-@property (assign , nonatomic) HAVDECODER	 m_fsDecode;
-@property (assign , nonatomic) FRAME_P		 m_ViewFrame;
-@property (assign , nonatomic) BOOL          m_bPtzMoveLeft;
-@property (assign , nonatomic) BOOL          m_bPtzMoveRight;
-@property (assign , nonatomic) BOOL          m_bPtzMoveUp;
-@property (assign , nonatomic) BOOL          m_bPtzMoveDown;
-@property (assign , nonatomic) BOOL          m_bConnectedsuc;
+@property (nonatomic) HFSTHREAD     m_hThread;
+@property (nonatomic) HFSTHREAD     m_hMessageThread;
+@property (nonatomic) BOOL          m_ThreadRun;
+@property (nonatomic) BOOL          m_MessageThreadRun;
+@property (nonatomic) MUTEX         m_liveViewMutex;
+@property (nonatomic) MUTEX         m_hImageMutex;
+@property (nonatomic) MUTEX         m_hUpdateViewMutex;
+@property (nonatomic) HAVDECODER    m_fsDecode;
+@property (nonatomic) FRAME_P       m_ViewFrame;
+@property (nonatomic) BOOL          m_bPtzMoveLeft;
+@property (nonatomic) BOOL          m_bPtzMoveRight;
+@property (nonatomic) BOOL          m_bPtzMoveUp;
+@property (nonatomic) BOOL          m_bPtzMoveDown;
+@property (nonatomic) BOOL          m_bConnectedsuc;
+@property (nonatomic) int           picWidth;
+@property (nonatomic) int           picHeight;
 @end
 
 @implementation FoscamCamera
@@ -47,13 +46,11 @@ char m_frameBuf[BUFFER_SIZE];
 @synthesize user_Port = _user_Port;
 @synthesize user_Name = _user_Name;
 @synthesize user_Password = _user_Password;
+@synthesize firstImageShowView = _firstImageShowView;
 @synthesize m_hThread = _m_hThread;
 @synthesize m_hMessageThread = _m_hMessageThread;
 @synthesize m_ThreadRun = _m_ThreadRun;
 @synthesize m_MessageThreadRun = _m_MessageThreadRun;
-@synthesize m_CtrlParam = _m_CtrlParam;
-@synthesize m_iChid = _m_iChid;
-@synthesize m_iDeviceType = _m_iDeviceType;
 @synthesize m_liveViewMutex = _m_liveViewMutex;
 @synthesize m_hImageMutex = _m_hImageMutex;
 @synthesize m_hUpdateViewMutex = _m_hUpdateViewMutex;
@@ -64,6 +61,8 @@ char m_frameBuf[BUFFER_SIZE];
 @synthesize m_bPtzMoveUp = _m_bPtzMoveUp;
 @synthesize m_bPtzMoveDown = _m_bPtzMoveDown;
 @synthesize m_bConnectedsuc = _m_bConnectedsuc;
+@synthesize picWidth = _picWidth;
+@synthesize picHeight = _picHeight;
 
 - (id)init
 {
@@ -74,76 +73,47 @@ char m_frameBuf[BUFFER_SIZE];
     return self;
 }
 
-- (id)initWithImageView:(UIImageView *)imageView connectIP:(NSString *)ip connectPort:(int)port forAdmin:(NSString *)admin withPass:(NSString *)pass autoStart:(BOOL)startNow
-{
-    self = [self init];
-    if (self)
-    {
-        self.firstimageShowView = imageView;
-        self.user_IP            = ip;
-        self.user_Port          = port;
-        self.user_Name          = admin;
-        self.user_Password      = pass;
-        if (startNow)
-            [self startPlay];
-    }
-    return self;
-}
-
 - (void)initParameters
 {
     INIT_MUTEX(&_m_liveViewMutex);
     INIT_MUTEX(&_m_hImageMutex);
     INIT_MUTEX(&_m_hUpdateViewMutex);
     _m_bConnectedsuc = NO;
-    memset(&_m_CtrlParam, 0x0, sizeof(NETPARAM));
-}
-
-- (void)dealloc
-{
     _m_fsDecode = NULL;
-    
     _m_ThreadRun = NO;
     _m_hThread = NULL;
     _m_MessageThreadRun = NO;
     _m_hMessageThread = NULL;
-    
-    free(&_m_CtrlParam);
-    memset(&_m_CtrlParam, 0x0, sizeof(NETPARAM));
-    
-    RELEASE_MUTEX(&_m_liveViewMutex);
-    RELEASE_MUTEX(&_m_hImageMutex);
-    RELEASE_MUTEX(&_m_hUpdateViewMutex);
+    _m_bPtzMoveLeft = _m_bPtzMoveRight = _m_bPtzMoveUp = _m_bPtzMoveDown = NO;
 }
 
 HFSTHREAD fs_createThread(THREAD_FUNC_TO, void *);
 
 - (void)startPlay
 {
-    _m_iDeviceType = 1;  //0 - MJ device, 1 - H264 device
-    strncpy(_m_CtrlParam.ip, self.user_IP.UTF8String, 127);
-    strncpy(_m_CtrlParam.username, self.user_Name.UTF8String, 20);
-    strncpy(_m_CtrlParam.passwd, self.user_Password.UTF8String, 20);
-    _m_CtrlParam.streamType = 1; //0-sub stream  1-main stream
-    _m_CtrlParam.port = self.user_Port;
-    _m_CtrlParam.webPort = self.user_Port;
-    char m_Uid[64];
-    bzero(m_Uid, 64);
-    _m_iChid = DEFAULTCHID;
-    
     _m_ThreadRun = YES;
     _m_MessageThreadRun = YES;
     if (NULL == _m_hMessageThread) {
         _m_hMessageThread = (HFSTHREAD)fs_createThread((THREAD_FUNC_TO)&MessageThread, (__bridge void *)self);
     }
     
-    if (_m_iDeviceType == 1) {
-        [self initDecoder:DEFAULTCHID];
-        
-        usrLogIn(_m_iDeviceType, _m_CtrlParam.ip, _m_CtrlParam.username, _m_CtrlParam.passwd, _m_CtrlParam.streamType, _m_CtrlParam.port, _m_CtrlParam.webPort, m_Uid, _m_iChid);
-    } else if (_m_iDeviceType == 0) {
-        usrLogIn(_m_iDeviceType, _m_CtrlParam.ip, _m_CtrlParam.username, _m_CtrlParam.passwd, 0/*m_CtrlParam.streamType*/, _m_CtrlParam.webPort, _m_CtrlParam.port, m_Uid, _m_iChid);
-    }
+    [self initDecoder:DEFAULTCHID];
+    
+    // Reset picture (could have remembered last cam)
+    _picWidth = 0;
+    _picHeight = 0;
+    
+    char uid[64];
+    bzero(uid, 64);
+    usrLogIn(1, // 1 = H264
+             (char *)self.user_IP.UTF8String,
+             (char *)self.user_Name.UTF8String,
+             (char *)self.user_Password.UTF8String,
+             1, // 1 = Main Stream
+             self.user_Port,
+             self.user_Port,
+             uid,
+             DEFAULTCHID);
 }
 
 - (void)stopPlay
@@ -151,7 +121,7 @@ HFSTHREAD fs_createThread(THREAD_FUNC_TO, void *);
     if (_m_bConnectedsuc) {
         _m_bConnectedsuc = NO;
         // Should stop threads but would crash if we do, WTF FOSCAM?!
-
+        
         stopVideoStream(DEFAULTCHID);
         usrLogOut(DEFAULTCHID);
     } else {
@@ -219,10 +189,6 @@ HFSTHREAD fs_createThread(THREAD_FUNC_TO, void *);
     }
 }
 
-- (void)pauseMove
-{
-}
-
 #pragma mark  - FOSCAM_DATA
 
 - (void)setViewFrame:(FRAME_P)frame viewChid:(int)chid
@@ -281,67 +247,64 @@ void MessageThread(void *lParam)
     while (_m_MessageThreadRun) {
         nStatusId = getStatusId(DEFAULTCHID);
         if (nStatusId < 0) {
-            usleep(50);
-        } else {
-            switch (nStatusId) {
-                case FS_API_STATUS_LOGIN_SUCCESS:
-                {
-                    _m_bConnectedsuc = YES;
-                    [self.delegate loggedIn];
-                    startVideoStream(DEFAULTCHID);
-                    if (NULL == _m_hThread) {
-                        _m_hThread = (HFSTHREAD)fs_createThread((THREAD_FUNC_TO)&MediaThread, (__bridge void *)self);
-                    }
-                    break;
+            continue;
+        }
+        switch (nStatusId) {
+            case FS_API_STATUS_LOGIN_SUCCESS:
+            {
+                _m_bConnectedsuc = YES;
+                [self.delegate loggedIn];
+                startVideoStream(DEFAULTCHID);
+                if (NULL == _m_hThread) {
+                    _m_hThread = (HFSTHREAD)fs_createThread((THREAD_FUNC_TO)&MediaThread, (__bridge void *)self);
                 }
-                case FS_API_STATUS_LOGIN_USR_PWD_ERROR:
-                {
-                    _m_bConnectedsuc = NO;
-                    [self.delegate loginFailed:nStatusId];
-                    break;
-                }
-                case FS_API_STATUS_LOGIN_ACCESS_DENY:
-                {
-                    _m_bConnectedsuc = NO;
-                    [self.delegate loginFailed:nStatusId];
-                    break;
-                }
-                case FS_API_STATUS_LOGIN_EXCEED_MAX_USER:
-                {
-                    _m_bConnectedsuc = NO;
-                    [self.delegate loginFailed:nStatusId];
-                    break;
-                }
-                case FS_API_STATUS_LOGIN_CONNECT_FAIL:
-                {
-                    _m_bConnectedsuc = NO;
-                    [self.delegate loginFailed:nStatusId];
-                    break;
-                }
-                case FS_API_STATUS_LOGIN_ERROR_UNKNOW:
-                {
-                    _m_bConnectedsuc = NO;
-                    [self.delegate loginFailed:nStatusId];
-                    break;
-                }
-                case FS_API_STATUS_OPEN_VIDEO_SUCCESS:
-                {
-                    [self.delegate videoOpened];
-                    break;
-                }
-                case FS_API_STATUS_OPEN_VIDEO_CONNECTING:
-                {
-                    break;
-                }
-                case FS_API_STATUS_OPEN_VIDEO_FAIL:
-                {
-                    [self.delegate videoFailedToOpen];
-                    break;
-                }
-                    
-                default:
-                    break;
+                break;
             }
+            case FS_API_STATUS_LOGIN_USR_PWD_ERROR:
+            {
+                _m_bConnectedsuc = NO;
+                [self.delegate loginFailed:nStatusId];
+                break;
+            }
+            case FS_API_STATUS_LOGIN_ACCESS_DENY:
+            {
+                _m_bConnectedsuc = NO;
+                [self.delegate loginFailed:nStatusId];
+                break;
+            }
+            case FS_API_STATUS_LOGIN_EXCEED_MAX_USER:
+            {
+                _m_bConnectedsuc = NO;
+                [self.delegate loginFailed:nStatusId];
+                break;
+            }
+            case FS_API_STATUS_LOGIN_CONNECT_FAIL:
+            {
+                _m_bConnectedsuc = NO;
+                [self.delegate loginFailed:nStatusId];
+                break;
+            }
+            case FS_API_STATUS_LOGIN_ERROR_UNKNOWN:
+            {
+                _m_bConnectedsuc = NO;
+                [self.delegate loginFailed:nStatusId];
+                break;
+            }
+            case FS_API_STATUS_OPEN_VIDEO_SUCCESS:
+            {
+                break;
+            }
+            case FS_API_STATUS_OPEN_VIDEO_CONNECTING:
+            {
+                break;
+            }
+            case FS_API_STATUS_OPEN_VIDEO_FAIL:
+            {
+                [self.delegate loginFailed:nStatusId];
+                break;
+            }
+            default:
+                break;
         }
     }
 }
@@ -361,14 +324,21 @@ void MediaThread(void *lParam)
     int videoWidth = 0;
     int videoHeight = 0;
     
-    usleep(2000);
-    
     while (_m_ThreadRun) {
         if (getVideoStreamData(&frameType, m_frameBuf, &dataLen, &isKeyFrame, &videoWidth, &videoHeight, DEFAULTCHID) > 0) {
             if (dataLen < 0 || dataLen > BUFFER_SIZE) {
                 continue;
             }
-                    
+            
+            if (videoWidth != _picWidth || videoHeight != _picHeight) {
+                _picWidth = videoWidth;
+                _picHeight = videoHeight;
+                
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [self.delegate videoOpenedForWidth:videoWidth andHeight:videoHeight];
+                });
+            }
+            
             frameType = MF_VIDEO;
             [self fsframeCall:frameType :m_frameBuf :dataLen :DEFAULTCHID];
         }
@@ -379,25 +349,21 @@ void MediaThread(void *lParam)
 
 - (void)fsframeCall:(int)type :(char *)framedata :(int)len :(int)chid
 {
-	if (type == MF_VIDEO) {
-        if (chid == DEFAULTCHID) {
-            if (_m_iDeviceType == 1) {
-                //H264
-                char *data = FS_GetYUV420Data(_m_fsDecode, framedata, len);
-                if (data == NULL) {
-                    return;
-                }
-                
-                if (_m_ViewFrame.width == 0 || _m_ViewFrame.height == 0) {
-                    [self uninitDecoder:chid];
-                    [self initDecoder:chid];
-                    return;
-                }
-                
-                AVPicture *d = (AVPicture *)data;
-                [self imageFromAVPicture:*(d) width:_m_ViewFrame.width height:_m_ViewFrame.height chid:chid];
-            }
+	if (type == MF_VIDEO && chid == DEFAULTCHID) {
+        // H264
+        char *data = FS_GetYUV420Data(_m_fsDecode, framedata, len);
+        if (data == NULL) {
+            return;
         }
+        
+        if (_m_ViewFrame.width == 0 || _m_ViewFrame.height == 0) {
+            [self uninitDecoder:chid];
+            [self initDecoder:chid];
+            return;
+        }
+        
+        AVPicture *d = (AVPicture *)data;
+        [self imageFromAVPicture:*(d) width:_m_ViewFrame.width height:_m_ViewFrame.height chid:chid];
     }
 }
 
@@ -427,17 +393,14 @@ void MediaThread(void *lParam)
 	CGDataProviderRelease(provider);
 	CFRelease(data);
     
-    [self performSelectorOnMainThread:@selector(updateView:) withObject:image waitUntilDone:NO];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        LOCK_MUTEX(&_m_hUpdateViewMutex);
+        _firstImageShowView.image = image;
+        UNLOCK_MUTEX(&_m_hUpdateViewMutex);
+    });
     
     UNLOCK_MUTEX(&_m_hImageMutex);
 	return nil;
-}
-
-- (void)updateView:(UIImage *)img
-{
-    LOCK_MUTEX(&_m_hUpdateViewMutex);
-    self.firstimageShowView.image = img;
-    UNLOCK_MUTEX(&_m_hUpdateViewMutex);
 }
 
 @end
